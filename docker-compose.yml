@@ -10,52 +10,183 @@ services:
       - 9000:9000
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
+      - ./nyc_trip_data:/nyc_trip_data
     environment:
       - CLUSTER_NAME=test
     env_file:
       - ./hadoop.env
 
-  datanode:
+  datanode1:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
-    container_name: datanode
+    container_name: datanode1
     restart: always
     volumes:
-      - hadoop_datanode:/hadoop/dfs/data
+      - hadoop_datanode1:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    restart: always
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
     environment:
       SERVICE_PRECONDITION: "namenode:9870"
     env_file:
       - ./hadoop.env
   
+  # Hadoop ResourceManager
   resourcemanager:
     image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
     container_name: resourcemanager
     restart: always
-    environment:
-      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
+    depends_on:
+      - namenode
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8088:8088" # YARN ResourceManager UI
+
+  # Hadoop NodeManager 1
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager1
+    depends_on:
+      - resourcemanager
+      - namenode
     env_file:
       - ./hadoop.env
 
-  nodemanager1:
+  # Hadoop NodeManager 2
+  nodemanager2:
     image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
-    container_name: nodemanager
-    restart: always
-    environment:
-      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
+    container_name: nodemanager2
+    depends_on:
+      - resourcemanager
+      - namenode
     env_file:
       - ./hadoop.env
-  
+
+  # Hadoop HistoryServer
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
     container_name: historyserver
-    restart: always
-    environment:
-      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
-    volumes:
-      - hadoop_historyserver:/hadoop/yarn/timeline
+    depends_on:
+      - namenode
     env_file:
       - ./hadoop.env
-  
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    ports:
+      - "19888:19888" # HistoryServer UI
+
+  # Spark Master Service
+  spark-master:
+    image: bitnami/spark:latest
+    container_name: spark-master
+    restart: always
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+    env_file:
+      - ./postgres.env
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    depends_on:
+      - namenode
+    volumes:
+      - ./scripts:/scripts
+      - ./ivy2:/opt/bitnami/spark/.ivy2
+      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+
+  # Spark Worker Service
+  spark-worker1:
+    image: bitnami/spark:latest
+    container_name: spark-worker1
+    restart: always
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    env_file:
+      - ./postgres.env
+    ports:
+      - "8081:8081"
+    depends_on:
+      - spark-master
+    volumes:
+      - ./scripts:/scripts
+      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+
+  spark-worker2:
+    image: bitnami/spark:latest
+    container_name: spark-worker2
+    restart: always
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    env_file:
+      - ./postgres.env
+    ports:
+      - "8082:8082"
+    depends_on:
+      - spark-master
+    volumes:
+      - ./scripts:/scripts
+      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+
+
+  # PostgreSQL Service
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    restart: always
+    env_file:
+      - ./postgres.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # # Hadoop Exporter for HDFS Metrics
+  # hadoop-exporter:
+  #   image: oliver006/hadoop_exporter
+  #   container_name: hadoop-exporter
+  #   command: --hdfs.uri=http://namenode:9870
+  #   ports:
+  #     - "9903:9903"
+  #   depends_on:
+  #     - namenode
+  #   restart: always
+
+  # Prometheus Service
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "19091:19091"
+    restart: always
+
+  # Grafana Service
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: always
+
+    
 volumes:
   hadoop_namenode:
-  hadoop_datanode:
+  hadoop_datanode1:
+  hadoop_datanode2:
   hadoop_historyserver:
+  postgres_data:

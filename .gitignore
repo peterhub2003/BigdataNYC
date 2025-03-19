@@ -1,1 +1,6 @@
 data/
+nyc_trip_data/
+spark-jars/
+*.txt
+
+
