@@ -178,11 +178,11 @@ services:
     # build: ./superset
     image: thangdoc/superset-bigdata:latest
     container_name: superset
-    restart: alwaysdocker builder prune -f
+    restart: always
     ports:
       - "8089:8088"
     depends_on:
-      superset_db:
+      superset_db:  
         condition: service_healthy
     env_file:
       - path: superset/.env
