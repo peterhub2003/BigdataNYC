@@ -2,7 +2,7 @@ version: "3"
 
 services:
   namenode:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    image: jayachander/hadoop-namenode:1.0.0-hadoop3.3.2-java8
     container_name: namenode
     restart: always
     ports:
@@ -10,183 +10,213 @@ services:
       - 9000:9000
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
-      - ./nyc_trip_data:/nyc_trip_data
     environment:
-      - CLUSTER_NAME=test
+      - CLUSTER_NAME=${CLUSTER_NAME}
     env_file:
       - ./hadoop.env
+      - ./.env
 
   datanode1:
-    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    image: jayachander/hadoop-datanode:1.0.0-hadoop3.3.2-java8
     container_name: datanode1
     restart: always
     volumes:
       - hadoop_datanode1:/hadoop/dfs/data
     environment:
-      SERVICE_PRECONDITION: "namenode:9870"
+      - CLUSTER_NAME=${CLUSTER_NAME}
+      - SERVICE_PRECONDITION=${DATANODE_PRECONDITION}
     env_file:
       - ./hadoop.env
+      - ./.env
 
-  datanode2:
-    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
-    container_name: datanode2
-    restart: always
-    volumes:
-      - hadoop_datanode2:/hadoop/dfs/data
-    environment:
-      SERVICE_PRECONDITION: "namenode:9870"
-    env_file:
-      - ./hadoop.env
-  
   # Hadoop ResourceManager
   resourcemanager:
-    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    image: jayachander/hadoop-resourcemanager:1.0.0-hadoop3.3.2-java8
+
     container_name: resourcemanager
     restart: always
     depends_on:
       - namenode
+    environment:
+      - SERVICE_PRECONDITION=${RESOURCEMANAGER_PRECONDITION}
     env_file:
       - ./hadoop.env
+      - ./.env
     ports:
       - "8088:8088" # YARN ResourceManager UI
 
   # Hadoop NodeManager 1
   nodemanager1:
-    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    # build:
+    #   context: . # Thư mục chứa Dockerfile.nodemanager
+    #   dockerfile: Dockerfile.nodemanager # Tên Dockerfile bạn đã tạo
+    image: thangdoc/hadoop-nodemanager-python:latest
     container_name: nodemanager1
     depends_on:
       - resourcemanager
       - namenode
+    environment:
+      - SERVICE_PRECONDITION=${NODEMANAGER_PRECONDITION}
     env_file:
       - ./hadoop.env
-
-  # Hadoop NodeManager 2
-  nodemanager2:
-    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
-    container_name: nodemanager2
-    depends_on:
-      - resourcemanager
-      - namenode
-    env_file:
-      - ./hadoop.env
-
-  # Hadoop HistoryServer
-  historyserver:
-    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
-    container_name: historyserver
-    depends_on:
-      - namenode
-    env_file:
-      - ./hadoop.env
-    volumes:
-      - hadoop_historyserver:/hadoop/yarn/timeline
-    ports:
-      - "19888:19888" # HistoryServer UI
-
-  # Spark Master Service
-  spark-master:
-    image: bitnami/spark:latest
-    container_name: spark-master
-    restart: always
-    environment:
-      - SPARK_MODE=master
-      - SPARK_MASTER_PORT=7077
-      - SPARK_MASTER_WEBUI_PORT=8080
-    env_file:
-      - ./postgres.env
-    ports:
-      - "7077:7077"
-      - "8080:8080"
-    depends_on:
-      - namenode
-    volumes:
-      - ./scripts:/scripts
-      - ./ivy2:/opt/bitnami/spark/.ivy2
-      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
-
-  # Spark Worker Service
-  spark-worker1:
-    image: bitnami/spark:latest
-    container_name: spark-worker1
-    restart: always
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-    env_file:
-      - ./postgres.env
-    ports:
-      - "8081:8081"
-    depends_on:
-      - spark-master
-    volumes:
-      - ./scripts:/scripts
-      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
-
-  spark-worker2:
-    image: bitnami/spark:latest
-    container_name: spark-worker2
-    restart: always
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-    env_file:
-      - ./postgres.env
-    ports:
-      - "8082:8082"
-    depends_on:
-      - spark-master
-    volumes:
-      - ./scripts:/scripts
-      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
-
+      - ./.env
 
   # PostgreSQL Service
   postgres:
     image: postgres:13
     container_name: postgres
     restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     env_file:
-      - ./postgres.env
+      - ./.env
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # # Hadoop Exporter for HDFS Metrics
-  # hadoop-exporter:
-  #   image: oliver006/hadoop_exporter
-  #   container_name: hadoop-exporter
-  #   command: --hdfs.uri=http://namenode:9870
-  #   ports:
-  #     - "9903:9903"
-  #   depends_on:
-  #     - namenode
-  #   restart: always
-
-  # Prometheus Service
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "19091:19091"
+  # Apache Hive Service
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
     restart: always
-
-  # Grafana Service
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - "3000:3000"
     depends_on:
-      - prometheus
-    restart: always
+      - namenode
+      - postgres
+      - hive-metastore
+    ports:
+      - "10000:10000"  # HiveServer2 Thrift port
+      - "10002:10002"  # Hive Web UI
+    volumes:
+      - ./warehouse:/opt/hive/warehouse
+      - ./jars/postgresql-42.3.1.jar:/opt/hive/lib/postgresql-42.3.1.jar
+    environment:
+      - SERVICE_PRECONDITION=${HIVE_SERVER_PRECONDITION}
+    env_file:
+      - ./.env
 
-    
+  # Hive Metastore Service
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    restart: always
+    depends_on:
+      - namenode
+      - postgres
+    ports:
+      - "9083:9083"  # Metastore Thrift port
+    volumes:
+      - ./jars/postgresql-42.3.1.jar:/opt/hive/lib/postgresql-42.3.1.jar
+    environment:
+      - SERVICE_PRECONDITION=${HIVE_METASTORE_PRECONDITION}
+    env_file:
+      - ./.env
+    command: /opt/hive/bin/hive --service metastore
+
+  # Jupyter Notebook Service
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.3.0
+    container_name: jupyter
+    restart: always
+    ports:
+      - "8888:8888"
+      - "4041:4041"
+    depends_on:
+      - resourcemanager
+      - nodemanager1
+      - hive-metastore
+      - hive-server
+    volumes:
+      - ./notebooks:/mnt/notebooks
+      - ./scripts:/mnt/scripts
+      - ./requirements.txt:/tmp/requirements.txt
+      - ./jars/postgresql-42.3.1.jar:/usr/local/spark/jars/postgresql-42.3.1.jar
+      - ./conf/yarn-site.xml:/usr/local/spark/conf/yarn-site.xml
+      - ./conf/core-site.xml:/usr/local/spark/conf/core-site.xml
+      - ./conf/hdfs-site.xml:/usr/local/spark/conf/hdfs-site.xml
+    environment:
+      - SPARK_MASTER=yarn
+      - SPARK_SUBMIT_DEPLOYMODE=client
+      - JUPYTER_ENABLE_LAB=yes
+      # Spark connection settings
+      - SPARK_DRIVER_HOST=jupyter
+      - SPARK_DRIVER_MEMORY=1g
+      - SPARK_EXECUTOR_MEMORY=1g
+      - SPARK_NETWORK_TIMEOUT=800
+      - SPARK_UI_PORT=4041
+      - HADOOP_CONF_DIR=/usr/local/spark/conf
+      - YARN_CONF_DIR=/usr/local/spark/conf
+      - SPARK_OPTS="--master=yarn --deploy-mode=client --driver-java-options=-Dlog4j.logLevel=info"
+      - SERVICE_PRECONDITION=hive-metastore:9083 resourcemanager:8088
+    env_file:
+      - ./.env
+      - ./hadoop.env
+    command: >
+      bash -c "pip install -r /tmp/requirements.txt && \
+      start-notebook.sh --NotebookApp.token='' --NotebookApp.password='' --NotebookApp.notebook_dir='/mnt/notebooks'"
+
+  superset_db:
+    image: postgres:13
+    container_name: superset_db
+    restart: always
+    environment:
+      POSTGRES_DB: superset
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Superset
+  superset:
+    # build: ./superset
+    image: thangdoc/superset-bigdata:latest
+    container_name: superset
+    restart: always
+    ports:
+      - "8089:8088"
+    depends_on:
+      superset_db:
+        condition: service_healthy
+    env_file:
+      - path: superset/.env
+    environment:
+      SUPERSET_CONFIG_PATH: /app/config/superset_config.py
+      # Sử dụng biến môi trường theo format SUPERSET__<section>__<key> sẽ ghi đè config file
+      # SUPERSET__SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://superset:superset@superset_db:5432/superset"
+      # # Hoặc dùng biến gốc (ưu tiên thấp hơn format trên)
+      # # SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://superset:superset@superset_db:5432/superset"
+
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-"YOUR_OWN_RANDOM_SECRET_KEY_CHANGE_ME"}
+
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@superset.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_FIRSTNAME: ${ADMIN_FIRSTNAME:-Superset}
+      ADMIN_LASTNAME: ${ADMIN_LASTNAME:-Admin}
+
+      SUPERSET_LOAD_EXAMPLES: "${SUPERSET_LOAD_EXAMPLES:-no}"
+      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      # postgresql://<UserName>:<DBPassword>@<Database Host>/<Database Name>
+    volumes:
+      - ./superset/entrypoint.sh:/app/docker/entrypoint.sh
+      - superset_home:/app/superset_home
+      - ./superset/superset_config.py:/app/config/superset_config.py
+    entrypoint: ["/app/docker/entrypoint.sh"] 
+    command: ["/usr/bin/run-server.sh"]
+
+
 volumes:
   hadoop_namenode:
   hadoop_datanode1:
-  hadoop_datanode2:
-  hadoop_historyserver:
+  # hadoop_historyserver:
   postgres_data:
+  warehouse:
+  superset_db_data:
+  superset_home:

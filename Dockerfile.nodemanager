@@ -1,0 +1,69 @@
+# Stage 1: Python Builder
+FROM ubuntu:20.04 AS python-builder
+
+# Install build dependencies for Python
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    zlib1g-dev \
+    libncurses5-dev \
+    libgdbm-dev \
+    libnss3-dev \
+    libssl-dev \
+    libreadline-dev \
+    libffi-dev \
+    libsqlite3-dev \
+    wget \
+    curl \
+    ca-certificates \
+    libbz2-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download and compile Python 3.10
+WORKDIR /tmp
+RUN wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz && \
+    tar -xf Python-3.10.0.tgz && \
+    cd Python-3.10.0 && \
+    ./configure --enable-optimizations && \
+    make -j $(nproc) && \
+    make altinstall && \
+    cd .. && \
+    rm -rf Python-3.10.0 Python-3.10.0.tgz
+
+# Ensure pip is installed and upgraded for Python 3.10
+RUN /usr/local/bin/python3.10 -m ensurepip && \
+    /usr/local/bin/python3.10 -m pip install --upgrade pip
+
+# Install PySpark
+RUN /usr/local/bin/pip3.10 install --no-cache-dir pyspark
+
+# Stage 2: NodeManager with Python
+FROM jayachander/hadoop-nodemanager:1.0.0-hadoop3.3.2-java8
+
+# Switch to root for installation
+USER root
+
+# Copy Python installation from the builder stage
+COPY --from=python-builder /usr/local /usr/local
+
+# Create symlinks for Python and pip
+RUN ln -sf /usr/local/bin/python3.10 /usr/bin/python && \
+    ln -sf /usr/local/bin/python3.10 /usr/bin/python3 && \
+    ln -sf /usr/local/bin/pip3.10 /usr/bin/pip && \
+    ln -sf /usr/local/bin/pip3.10 /usr/bin/pip3
+
+# Set environment variables for PySpark
+ENV PYSPARK_PYTHON=/usr/local/bin/python3.10
+ENV PYSPARK_DRIVER_PYTHON=/usr/local/bin/python3.10
+ENV SPARK_SUBMIT_DEPLOYMODE=client
+
+# # Create YARN log directory if needed
+# RUN mkdir -p /var/log/hadoop-yarn && \
+#     chown -R yarn:yarn /var/log/hadoop-yarn
+
+# Switch back to yarn user
+# USER yarn
+
+# # Start nodemanager when container starts
+# CMD ["yarn", "nodemanager"]

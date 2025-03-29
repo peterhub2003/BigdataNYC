@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- PostgreSQL Metastore Configuration -->
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:postgresql://postgres:5432/metastore</value>
+        <description>JDBC connect string for a JDBC metastore</description>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.postgresql.Driver</value>
+        <description>Driver class name for a JDBC metastore</description>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>ThangData</value>
+        <description>Username to use against metastore database</description>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>password</value>
+        <description>Password to use against metastore database</description>
+    </property>
+    
+    <!-- Explicitly set the database type -->
+    <property>
+        <name>hive.metastore.db.type</name>
+        <value>postgres</value>
+        <description>Type of database used by metastore</description>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.Multithreaded</name>
+        <value>true</value>
+    </property>
+    
+    <!-- Warehouse and HDFS Configuration -->
+    <property>
+        <name>hive.metastore.warehouse.dir</name>
+        <value>hdfs://namenode:9000/user/hive/warehouse</value>
+        <description>Location of default database for the warehouse</description>
+    </property>
+    
+    <property>
+        <name>hive.metastore.warehouse.external.dir</name>
+        <value>hdfs://namenode:9000/user/hive/warehouse/external</value>
+        <description>Location of external database for the warehouse</description>
+    </property>
+    
+    <property>
+        <name>hive.metastore.uris</name>
+        <value>thrift://hive-metastore:9083</value>
+        <description>Thrift URI for the remote metastore</description>
+    </property>
+    
+    <!-- Schema initialization -->
+    <property>
+        <name>datanucleus.schema.autoCreateAll</name>
+        <value>true</value>
+        <description>Auto creates necessary schema on a startup if one doesn't exist</description>
+    </property>
+    
+    <property>
+        <name>hive.metastore.schema.verification</name>
+        <value>false</value>
+        <description>Disable schema verification</description>
+    </property>
+    
+    <property>
+        <name>hive.metastore.schema.verification.record.version</name>
+        <value>false</value>
+        <description>Do not verify schema version</description>
+    </property>
+    
+    <!-- General Configuration -->
+    <property>
+        <name>hive.server2.enable.doAs</name>
+        <value>false</value>
+    </property>
+    
+    <property>
+        <name>hive.metastore.client.connect.retry.delay</name>
+        <value>5s</value>
+    </property>
+    
+    <property>
+        <name>hive.metastore.client.socket.timeout</name>
+        <value>1800s</value>
+    </property>
+    
+    <property>
+        <name>hive.server2.thrift.port</name>
+        <value>10000</value>
+    </property>
+    
+    <property>
+        <name>hive.server2.thrift.bind.host</name>
+        <value>0.0.0.0</value>
+    </property>
+    
+    <property>
+        <name>hive.server2.webui.port</name>
+        <value>10002</value>
+    </property>
+    
+    <property>
+        <name>hive.metastore.event.db.notification.api.auth</name>
+        <value>false</value>
+    </property>
+
+    <!-- Additional PostgreSQL specific properties -->
+    <property>
+        <name>datanucleus.autoCreateSchema</name>
+        <value>true</value>
+    </property>
+    
+    <property>
+        <name>datanucleus.fixedDatastore</name>
+        <value>false</value>
+    </property>
+    
+    <property>
+        <name>hive.metastore.schema.init.hooks</name>
+        <value>org.apache.hadoop.hive.metastore.hooks.JDBCSchemaInitHook</value>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.postgresql.Driver</value>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:postgresql://postgres:5432/metastore</value>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>ThangData</value>
+    </property>
+    
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>password</value>
+    </property>
+</configuration>

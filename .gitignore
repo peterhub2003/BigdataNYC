@@ -1,6 +1,13 @@
 data/
 nyc_trip_data/
-spark-jars/
+jars/
 *.txt
 
+airflow/
+notebooks/metastore_db
+notebooks/.ipynb_checkpoints
 
+superset/Dockerfile
+*.log
+
+conf/nginx.conf
