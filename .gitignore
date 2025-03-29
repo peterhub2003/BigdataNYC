@@ -7,6 +7,8 @@ airflow/
 notebooks/metastore_db
 notebooks/.ipynb_checkpoints
 
+
+Dockerfile.nodemanager
 superset/Dockerfile
 *.log
 
