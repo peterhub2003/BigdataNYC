@@ -178,7 +178,7 @@ services:
     # build: ./superset
     image: thangdoc/superset-bigdata:latest
     container_name: superset
-    restart: always
+    restart: alwaysdocker builder prune -f
     ports:
       - "8089:8088"
     depends_on:
