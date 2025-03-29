@@ -29,7 +29,7 @@ cd big-data
 ### 2.1 Khởi động tất cả các container
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
 
 ### 2.2 Kiểm tra trạng thái các container
