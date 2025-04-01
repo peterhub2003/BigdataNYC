@@ -13,3 +13,5 @@ superset/Dockerfile
 *.log
 
 conf/nginx.conf
+
+nifi_templates/

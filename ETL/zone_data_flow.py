@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Example PySpark script demonstrating the three-zone data architecture:
-- Raw Zone: Original data
-- Processed Zone: Cleaned & standardized (Parquet format)
-- Curated Zone: Business-ready data models (Star schema)
-"""
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, to_date, year, month, dayofmonth
 

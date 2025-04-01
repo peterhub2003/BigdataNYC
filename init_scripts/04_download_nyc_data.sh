@@ -17,7 +17,7 @@ echo "Parameters: Years ${START_YEAR}-${END_YEAR}, Months ${START_MONTH}-${END_M
 mkdir -p ./tmp_data
 
 # Set the target directory in HDFS
-HDFS_TARGET_DIR="/data/raw/nyc_trip_data"
+HDFS_TARGET_DIR="/data/raw/nyc_trip"
 
 # Ensure the HDFS directory exists (should be created by 01_create_hdfs_dirs.sh)
 echo "Verifying HDFS target directory exists..."

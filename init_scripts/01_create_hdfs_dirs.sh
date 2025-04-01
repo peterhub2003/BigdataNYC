@@ -15,21 +15,24 @@ echo "HDFS is ready!"
 
 # Create zone directories
 echo "Creating data zone directories..."
-docker exec namenode hdfs dfs -mkdir -p /data/raw /data/processed /data/curated
+# Check if directories exist before creating them
+for dir in /data/raw /data/processed /data/curated; do
+  if ! docker exec namenode hdfs dfs -test -d $dir 2>/dev/null; then
+    echo "Creating directory $dir..."
+    docker exec namenode hdfs dfs -mkdir -p $dir
+  else
+    echo "Directory $dir already exists."
+  fi
+done
 docker exec namenode hdfs dfs -chmod 750 /data/raw /data/processed
 docker exec namenode hdfs dfs -chmod 770 /data/curated
 
-# Create nyc_trip_data directory within raw zone
-echo "Creating NYC trip data directory..."
-docker exec namenode hdfs dfs -mkdir -p /data/raw/nyc_trip_data
-docker exec namenode hdfs dfs -chmod 755 /data/raw/nyc_trip_data
 
-# Create Hive warehouse directory
 echo "Creating Hive warehouse directory..."
 docker exec namenode hdfs dfs -mkdir -p /user/hive/warehouse
 docker exec namenode hdfs dfs -chmod g+w /user/hive/warehouse
 
-# Create Spark logs directory
+
 echo "Creating Spark logs directory..."
 docker exec namenode hdfs dfs -mkdir -p /user/hadoop/spark-logs
 docker exec namenode hdfs dfs -chmod g+w /user/hadoop/spark-logs
@@ -37,3 +40,6 @@ docker exec namenode hdfs dfs -chmod g+w /user/hadoop/spark-logs
 echo "===== HDFS directories created successfully ====="
 docker exec namenode hdfs dfs -ls -R /data
 docker exec namenode hdfs dfs -ls /user
+
+
+./init_scripts/05_setup_nifi_hdfs_dirs.sh
