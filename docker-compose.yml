@@ -1,187 +1,255 @@
-version: "3"
+version: "3.8"
 
 services:
   namenode:
     image: jayachander/hadoop-namenode:1.0.0-hadoop3.3.2-java8
-    container_name: namenode
-    restart: always
-    ports:
-      - 9870:9870
-      - 9000:9000
+    hostname: namenode 
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
     environment:
-      - CLUSTER_NAME=${CLUSTER_NAME}
+      - CLUSTER_NAME=${CLUSTER_NAME:-hadoop-cluster}
     env_file:
-      - ./hadoop.env
-      - ./.env
+      - ./hadoop.env 
+      - ./.env      
+    ports:
+      - "9870:9870" 
+      - "9000:9000" 
+    networks:
+      - hadoop-net
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 8G 
+      # placement:
+      #   constraints: [node.labels.studio == manager]
 
-  datanode1:
+
+  datanode1: &datanode-template
     image: jayachander/hadoop-datanode:1.0.0-hadoop3.3.2-java8
-    container_name: datanode1
-    restart: always
+    hostname: datanode1
     volumes:
       - hadoop_datanode1:/hadoop/dfs/data
     environment:
-      - CLUSTER_NAME=${CLUSTER_NAME}
-      - SERVICE_PRECONDITION=${DATANODE_PRECONDITION}
+      - CLUSTER_NAME=${CLUSTER_NAME:-hadoop-cluster}
+      - SERVICE_PRECONDITION=${DATANODE_PRECONDITION:-namenode:9870}
     env_file:
-      - ./hadoop.env
-      - ./.env
-
-  # Hadoop ResourceManager
-  resourcemanager:
-    image: jayachander/hadoop-resourcemanager:1.0.0-hadoop3.3.2-java8
-
-    container_name: resourcemanager
-    restart: always
+      - ./hadoop.env 
+      - ./.env      
+    networks:
+      - hadoop-net
     depends_on:
       - namenode
-    environment:
-      - SERVICE_PRECONDITION=${RESOURCEMANAGER_PRECONDITION}
-    env_file:
-      - ./hadoop.env
-      - ./.env
-    ports:
-      - "8088:8088" # YARN ResourceManager UI
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
-  # Hadoop NodeManager
-  nodemanager1:
-    image: thangdoc/hadoop-nodemanager-python:latest
-    container_name: nodemanager1
-    restart: always
-    depends_on:
-      - resourcemanager
-      - namenode
-    environment:
-      - SERVICE_PRECONDITION=${NODEMANAGER_PRECONDITION}
-    env_file:
-      - ./hadoop.env
-      - ./.env
+  datanode2:
+    <<: *datanode-template 
+    hostname: datanode2
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
 
-  nodemanager2:
-    image: thangdoc/hadoop-nodemanager-python:latest
-    container_name: nodemanager2
-    restart: always
-    depends_on:
-      - resourcemanager
-      - namenode
-    environment:
-      - SERVICE_PRECONDITION=${NODEMANAGER_PRECONDITION}
-    env_file:
-      - ./hadoop.env
-      - ./.env
-
-  nodemanager3:
-    image: thangdoc/hadoop-nodemanager-python:latest
-    container_name: nodemanager3 
-    restart: always
-    depends_on:
-      - resourcemanager
-      - namenode
-    environment:
-      - SERVICE_PRECONDITION=${NODEMANAGER_PRECONDITION}
-    env_file:
-      - ./hadoop.env
-      - ./.env
-
-  # PostgreSQL Service
+  datanode3:
+    <<: *datanode-template 
+    hostname: datanode3
+    volumes:
+      - hadoop_datanode3:/hadoop/dfs/data
+  
   postgres:
     image: postgres:13
-    container_name: postgres
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES}
-    env_file:
-      - ./.env
-    ports:
-      - "5432:5432"
+    hostname: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  # Apache Hive Service
-  hive-server:
-    image: bde2020/hive:2.3.2-postgresql-metastore
-    container_name: hive-server
-    restart: always
-    depends_on:
-      - namenode
-      - postgres
-      - hive-metastore
     ports:
-      - "10000:10000"  # HiveServer2 Thrift port
-      - "10002:10002"  # Hive Web UI
-    volumes:
-      - ./warehouse:/opt/hive/warehouse
-      - ./jars/postgresql-42.3.1.jar:/opt/hive/lib/postgresql-42.3.1.jar
-    environment:
-      - SERVICE_PRECONDITION=${HIVE_SERVER_PRECONDITION}
+      - "5432:5432"
     env_file:
-      - ./.env
+      - ./.env 
+    networks:
+      - hadoop-net
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
-  # Hive Metastore Service
   hive-metastore:
     image: bde2020/hive:2.3.2-postgresql-metastore
-    container_name: hive-metastore
-    restart: always
+    hostname: hive-metastore
+    volumes:
+      - warehouse:/opt/hive/data/warehouse 
+    environment:
+      - SERVICE_PRECONDITION=${HIVE_METASTORE_PRECONDITION:-namenode:9870 datanode1:9866 postgres:5432} 
+    env_file:
+      - ./.env 
+    networks:
+      - hadoop-net
     depends_on:
       - namenode
+      - datanode1
       - postgres
-    ports:
-      - "9083:9083"  # Metastore Thrift port
-    volumes:
-      - ./jars/postgresql-42.3.1.jar:/opt/hive/lib/postgresql-42.3.1.jar
+    command: /opt/hive/bin/hive --service metastore
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    hostname: hive-server
+    configs:
+      - source: core-site-v1
+        target: /opt/hive/conf/core-site.xml 
+      - source: hdfs-site-v1
+        target: /opt/hive/conf/hdfs-site.xml 
+      - source: yarn-site-v1
+        target: /opt/hive/conf/yarn-site.xml 
+      - source: mapred-site-v1
+        target: /opt/hive/conf/mapred-site.xml 
+      - source: hive-site-v1
+        target: /opt/hive/conf/hive-site.xml
     environment:
-      - SERVICE_PRECONDITION=${HIVE_METASTORE_PRECONDITION}
+      - SERVICE_PRECONDITION=${HIVE_SERVER_PRECONDITION:-hive-metastore:9083 resourcemanager:8088} 
+      - HADOOP_CONF_DIR=/opt/hive/conf 
+      - YARN_CONF_DIR=/opt/hive/conf 
+      - HADOOP_HEAPSIZE=2048
+      - HIVE_SERVER2_HEAPSIZE=2048 
     env_file:
       - ./.env
-    command: /opt/hive/bin/hive --service metastore
+    networks:
+      - hadoop-net
+    depends_on:
+      - hive-metastore
+      - resourcemanager 
+    command: /opt/hive/bin/hive --service hiveserver2
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
-  # Jupyter Notebook Service
-  jupyter:
-    image: jupyter/pyspark-notebook:spark-3.3.0
-    container_name: jupyter
-    restart: always
+
+  resourcemanager:
+    image: jayachander/hadoop-resourcemanager:1.0.0-hadoop3.3.2-java8
+    hostname: resourcemanager
+    environment:
+      - SERVICE_PRECONDITION=${RESOURCEMANAGER_PRECONDITION:-namenode:9870 datanode1:9866} 
+      - YARN_RESOURCEMANAGER_OPTS=-Ddebug.mode=true
+      - HADOOP_HEAPSIZE=2048
+      - YARN_HEAPSIZE_MAX=3072
+      - YARN_RESOURCEMANAGER_HEAPSIZE=2048
+    env_file:
+      - ./hadoop.env 
+      - ./.env     
     ports:
-      - "8888:8888"
-      - "4041:4041"
+      - "8088:8088" # YARN ResourceManager UI
+    networks:
+      - hadoop-net
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+      - datanode3
+
+
+  nodemanager1: &nodemanager-template
+    image: thangdoc/hadoop-nodemanager-python:latest 
+    hostname: nodemanager1
+    environment:
+      - SERVICE_PRECONDITION=${NODEMANAGER_PRECONDITION:-namenode:9870 resourcemanager:8088} 
+      - HADOOP_HEAPSIZE=1024
+      - YARN_HEAPSIZE_MAX=1536
+      - YARN_NODEMANAGER_HEAPSIZE=1024
+    env_file:
+      - ./hadoop.env 
+      - ./.env      
+    networks:
+      - hadoop-net
     depends_on:
       - resourcemanager
-      - nodemanager1
-      - hive-metastore
-      - hive-server
+      - namenode
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  nodemanager2:
+    <<: *nodemanager-template
+    hostname: nodemanager2
+
+  nodemanager3:
+    <<: *nodemanager-template
+    hostname: nodemanager3
+
+
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.3.0
+    hostname: jupyter
+    ports:
+      - "8888:8888" 
+      - "4041:4041" 
     volumes:
-      - ./notebooks:/mnt/notebooks
-      - ./ETL:/mnt/scripts
-      - ./requirements.txt:/tmp/requirements.txt
-      - ./jars/postgresql-42.3.1.jar:/usr/local/spark/jars/postgresql-42.3.1.jar
-      - ./conf/yarn-site.xml:/usr/local/spark/conf/yarn-site.xml
-      - ./conf/core-site.xml:/usr/local/spark/conf/core-site.xml
-      - ./conf/hdfs-site.xml:/usr/local/spark/conf/hdfs-site.xml
-      - ./conf/hive-site.xml:/usr/local/spark/conf/hive-site.xml
+      - ./notebooks:/mnt/notebooks   
+    configs:
+      - source: core-site-v1
+        target: /usr/local/spark/conf/core-site.xml 
+      - source: hdfs-site-v1
+        target: /usr/local/spark/conf/hdfs-site.xml
+      - source: yarn-site-v1
+        target: /usr/local/spark/conf/yarn-site.xml
+      - source: hive-site-v1
+        target: /usr/local/spark/conf/hive-site.xml
+      - source: spark-defaults-v1
+        target: /usr/local/spark/conf/spark-defaults.conf
+      - source: postgres_jars
+        target: /usr/local/spark/jars/postgresql-42.3.1.jar
+      - source: requirements
+        target: /tmp/requirements.txt
+
     environment:
       - SPARK_MASTER=yarn
       - SPARK_SUBMIT_DEPLOYMODE=client
       - JUPYTER_ENABLE_LAB=yes
+      - SPARK_DRIVER_HOST=jupyter 
 
-      - SPARK_DRIVER_HOST=jupyter
-      - SPARK_DRIVER_MEMORY=1g
-      - SPARK_EXECUTOR_MEMORY=1g
-      - SPARK_NETWORK_TIMEOUT=800
-      - SPARK_UI_PORT=4041
-      - HADOOP_CONF_DIR=/usr/local/spark/conf
+      - HADOOP_CONF_DIR=/usr/local/spark/conf 
       - YARN_CONF_DIR=/usr/local/spark/conf
       - SPARK_OPTS="--master=yarn --deploy-mode=client --driver-java-options=-Dlog4j.logLevel=info"
       - SERVICE_PRECONDITION=hive-metastore:9083 resourcemanager:8088
     env_file:
-      - ./.env
-      - ./hadoop.env
+      - ./.env        
+      - ./hadoop.env  
+    networks:
+      - hadoop-net
+    depends_on: 
+      - resourcemanager
+      - nodemanager
+      - hive-metastore
     command: >
       bash -c "pip install -r /tmp/requirements.txt && \
       start-notebook.sh --NotebookApp.token='' --NotebookApp.password='' --NotebookApp.notebook_dir='/mnt/notebooks'"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
 
   superset_db:
     image: postgres:13
@@ -191,33 +259,32 @@ services:
       POSTGRES_DB: superset
       POSTGRES_USER: superset
       POSTGRES_PASSWORD: superset
+    networks:
+      - hadoop-net
     volumes:
       - superset_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
-  # Superset
   superset:
-    # build: ./superset
     image: thangdoc/superset-bigdata:latest
     container_name: superset
     restart: always
     ports:
       - "8089:8088"
     depends_on:
-      superset_db:  
-        condition: service_healthy
+      - superset_db
+    networks:
+      - hadoop-net
     env_file:
-      - path: superset/.env
+      - ./superset/.env
     environment:
       SUPERSET_CONFIG_PATH: /app/config/superset_config.py
-      # Sử dụng biến môi trường theo format SUPERSET__<section>__<key> sẽ ghi đè config file
-      # SUPERSET__SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://superset:superset@superset_db:5432/superset"
-      # # Hoặc dùng biến gốc (ưu tiên thấp hơn format trên)
-      # # SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://superset:superset@superset_db:5432/superset"
+      SUPERSET_LOAD_EXAMPLES: "${SUPERSET_LOAD_EXAMPLES:-no}"
+      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
 
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-"YOUR_OWN_RANDOM_SECRET_KEY_CHANGE_ME"}
 
@@ -226,71 +293,99 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       ADMIN_FIRSTNAME: ${ADMIN_FIRSTNAME:-Superset}
       ADMIN_LASTNAME: ${ADMIN_LASTNAME:-Admin}
+    configs:
+      - source: superset_entrypoint
+        target: /app/docker/entrypoint.sh
+        mode: 0755 
+      - source: superset_config
+        target: /app/config/superset_config.py
 
-      SUPERSET_LOAD_EXAMPLES: "${SUPERSET_LOAD_EXAMPLES:-no}"
-      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
-      # postgresql://<UserName>:<DBPassword>@<Database Host>/<Database Name>
     volumes:
-      - ./superset/entrypoint.sh:/app/docker/entrypoint.sh
       - superset_home:/app/superset_home
-      - ./superset/superset_config.py:/app/config/superset_config.py
     entrypoint: ["/app/docker/entrypoint.sh"] 
     command: ["/usr/bin/run-server.sh"]
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
-  # Apache NiFi Service
-  nifi:
-    image: apache/nifi:1.28.0
-    container_name: nifi
-    restart: always
-    ports:
-      - "8443:8443"  # NiFi HTTPS Web UI
+
+  historyserver:
+    image: jayachander/hadoop-historyserver:1.0.0-hadoop3.3.2-java8
+    container_name: historyserver
+    hostname: historyserver
+    networks:
+      - hadoop-net
     environment:
-      - NIFI_WEB_HTTPS_PORT=8443
-      - NIFI_WEB_HTTP_PORT=
-      - NIFI_CLUSTER_IS_NODE=false
-      # - NIFI_SENSITIVE_PROPS_KEY=ctsBtRBKHRAx69EqUghvvgEvjnaLjFEB
-      - SINGLE_USER_CREDENTIALS_USERNAME=admin
-      - SINGLE_USER_CREDENTIALS_PASSWORD=ctsBtRBKHRAx69EqUghvvgEvjnaLjFEB
-      - NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
-      - NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
-      - NIFI_JVM_HEAP_INIT=1g
-      - NIFI_JVM_HEAP_MAX=4g
-      - HADOOP_CONF_DIR=/opt/hadoop/conf
-      - SERVICE_PRECONDITION=namenode:9000 datanode1:9864
-    env_file:
-      - ./.env
+      - YARN_CONF_yarn_log_aggregation_enable=true
+      - YARN_CONF_yarn_nodemanager_remote___app___log___dir=hdfs://namenode:9000/app-logs
+      - YARN_CONF_yarn_log_server_url=http://historyserver:8188/applicationhistory/logs/
+      - MAPRED_CONF_mapreduce_jobhistory_address=historyserver:10020
+      - MAPRED_CONF_mapreduce_jobhistory_webapp_address=historyserver:8188
+      - YARN_CONF_yarn_timeline___service_enabled=true
+      - YARN_CONF_yarn_timeline___service_hostname=historyserver
+      - YARN_CONF_yarn_timeline___service_address=historyserver:10200
+      - YARN_CONF_yarn_timeline___service_webapp_address=historyserver:8188
+      - YARN_CONF_yarn_timeline___service_generic___application___history_enabled=true
+      - YARN_CONF_yarn_timeline___service_store___class=org.apache.hadoop.yarn.server.timeline.RollingLevelDBTimelineStore
+      - YARN_CONF_yarn_timeline___service_leveldb___timeline___store_path=/hadoop/yarn/timeline
+    ports:
+      - "8188:8188"
     volumes:
-      - nifi_conf:/opt/nifi/nifi-current/conf
-      - nifi_database_repository:/opt/nifi/nifi-current/database_repository
-      - nifi_flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
-      - nifi_content_repository:/opt/nifi/nifi-current/content_repository
-      - nifi_provenance_repository:/opt/nifi/nifi-current/provenance_repository
-      - nifi_state:/opt/nifi/nifi-current/state
-      - nifi_logs:/opt/nifi/nifi-current/logs
-      - ./conf/core-site.xml:/opt/hadoop/conf/core-site.xml
-      - ./conf/hdfs-site.xml:/opt/hadoop/conf/hdfs-site.xml
-      # - ./scripts:/opt/nifi/nifi-current/scripts
-      # - ./nifi_templates:/opt/nifi/nifi-current/conf/templates
+      - historyserver_timeline:/hadoop/yarn/timeline
     depends_on:
       - namenode
-      - datanode1
+      - resourcemanager
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
 
+# --- Volumes ---
 volumes:
   hadoop_namenode:
   hadoop_datanode1:
-  # hadoop_historyserver:
-  
+  hadoop_datanode2:
+  hadoop_datanode3:
+
   postgres_data:
   warehouse:
+
   superset_db_data:
   superset_home:
 
-  nifi_conf:
-  nifi_database_repository:
-  nifi_flowfile_repository:
-  nifi_content_repository:
-  nifi_provenance_repository:
-  nifi_state:
-  nifi_logs:
+  historyserver_timeline: {}
 
+# --- Networks ---
+networks:
+  hadoop-net:
+    driver: overlay
+    attachable: true
+    # external: true  
+
+configs: 
+  core-site-v1:
+    external: true 
+  hdfs-site-v1:
+    external: true
+  yarn-site-v1:
+    external: true
+  hive-site-v1:
+    external: true
+  spark-defaults-v1:
+    external: true
+  requirements:
+    external: true
+  mapred-site-v1:
+    external: true
+
+  postgres_jars:
+    external: true
+  
+  superset_entrypoint:
+    external: true
+  superset_config:
+    external: true

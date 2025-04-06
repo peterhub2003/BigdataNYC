@@ -26,7 +26,6 @@
         <description>Password to use against metastore database</description>
     </property>
     
-    <!-- Explicitly set the database type -->
     <property>
         <name>hive.metastore.db.type</name>
         <value>postgres</value>
@@ -51,100 +50,115 @@
         <description>Location of external database for the warehouse</description>
     </property>
     
+    <!-- Server Configuration -->
+    <property>
+        <name>hive.server2.enable.doAs</name>
+        <value>false</value>
+        <description>Disable user impersonation for Hive Server 2</description>
+    </property>
+    <property>
+        <name>hive.server2.thrift.port</name>
+        <value>10000</value>
+    </property>
     <property>
         <name>hive.metastore.uris</name>
         <value>thrift://hive-metastore:9083</value>
         <description>Thrift URI for the remote metastore</description>
     </property>
     
-    <!-- Schema initialization -->
-    <property>
-        <name>datanucleus.schema.autoCreateAll</name>
-        <value>true</value>
-        <description>Auto creates necessary schema on a startup if one doesn't exist</description>
-    </property>
-    
-    <property>
-        <name>hive.metastore.schema.verification</name>
-        <value>false</value>
-        <description>Disable schema verification</description>
-    </property>
-    
-    <property>
-        <name>hive.metastore.schema.verification.record.version</name>
-        <value>false</value>
-        <description>Do not verify schema version</description>
-    </property>
-    
-    <!-- General Configuration -->
-    <property>
-        <name>hive.server2.enable.doAs</name>
-        <value>false</value>
-    </property>
-    
-    <property>
-        <name>hive.metastore.client.connect.retry.delay</name>
-        <value>5s</value>
-    </property>
-    
+    <!-- Performance Tuning -->
     <property>
         <name>hive.metastore.client.socket.timeout</name>
-        <value>1800s</value>
-    </property>
-    
-    <property>
-        <name>hive.server2.thrift.port</name>
-        <value>10000</value>
-    </property>
-    
-    <property>
-        <name>hive.server2.thrift.bind.host</name>
-        <value>0.0.0.0</value>
-    </property>
-    
-    <property>
-        <name>hive.server2.webui.port</name>
-        <value>10002</value>
+        <value>300</value>
+        <description>MetaStore Client Socket timeout in seconds</description>
     </property>
     
     <property>
         <name>hive.metastore.event.db.notification.api.auth</name>
         <value>false</value>
+        <description>Disable authorization for metastore notifications</description>
+    </property>
+    
+
+    <property>
+        <name>spark.yarn.appMasterEnv.PYSPARK_PYTHON</name>
+        <value>/usr/bin/python3</value>
+        <description>Python executable for PySpark in YARN AppMaster</description>
+    </property>
+    
+    <property>
+        <name>spark.yarn.appMasterEnv.PYSPARK_DRIVER_PYTHON</name>
+        <value>/usr/bin/python3</value>
+        <description>Python executable for PySpark driver</description>
+    </property>
+    
+    <property>
+        <name>spark.executorEnv.PYSPARK_PYTHON</name>
+        <value>/usr/bin/python3</value>
+        <description>Python executable for PySpark executors</description>
     </property>
 
-    <!-- Additional PostgreSQL specific properties -->
+
     <property>
-        <name>datanucleus.autoCreateSchema</name>
+        <name>hive.execution.engine</name>
+        <value>mr</value>
+        <description>Chooses execution engine. Options are: mr, tez, spark. Use mr.</description>
+    </property>
+
+    <property>
+        <name>spark.master</name>
+        <value>yarn</value>
+        <description>Spark master. Use yarn for YARN cluster.</description>
+    </property>
+    <property>
+        <name>spark.submit.deployMode</name>
+        <value>cluster</value> 
+        <description>Deployment mode for Spark driver (cluster or client)</description>
+    </property>
+    <!-- <property>
+        <name>spark.yarn.jars</name>
+        <value>hdfs://namenode:9000/spark-jars/*</value>
+        </description>
+    </property> -->
+
+    <property>
+        <name>spark.executor.memory</name>
+        <value>4g</value> 
+        <description>Amount of memory to use per executor process</description>
+    </property>
+
+    <property>
+        <name>spark.executor.cores</name>
+        <value>2</value> 
+        <description>Number of cores to use for each executor</description>
+    </property>
+
+    <property>
+        <name>spark.driver.memory</name>
+        <value>2g</value> 
+        <description>Amount of memory to use for the driver process</description>
+    </property>
+
+    <property>
+        <name>spark.executor.instances</name>
+        <value>3</value> 
+        <description>Initial number of executors to run</description>
+    </property>
+
+    <property>
+        <name>spark.eventLog.enabled</name>
         <value>true</value>
+        <description>Whether to log Spark events, useful for monitoring</description>
     </property>
-    
     <property>
-        <name>datanucleus.fixedDatastore</name>
-        <value>false</value>
+        <name>spark.eventLog.dir</name>
+        <value>hdfs://namenode:9000/user/hadoop/spark-logs</value> 
+        <description>Directory where Spark events are logged</description>
     </property>
-    
     <property>
-        <name>hive.metastore.schema.init.hooks</name>
-        <value>org.apache.hadoop.hive.metastore.hooks.JDBCSchemaInitHook</value>
+        <name>spark.history.fs.logDirectory</name>
+        <value>hdfs://namenode:9000/user/hadoop/spark-logs</value>
+        <description>Points Spark History Server to the log directory</description>
     </property>
-    
-    <property>
-        <name>javax.jdo.option.ConnectionDriverName</name>
-        <value>org.postgresql.Driver</value>
-    </property>
-    
-    <property>
-        <name>javax.jdo.option.ConnectionURL</name>
-        <value>jdbc:postgresql://postgres:5432/metastore</value>
-    </property>
-    
-    <property>
-        <name>javax.jdo.option.ConnectionUserName</name>
-        <value>ThangData</value>
-    </property>
-    
-    <property>
-        <name>javax.jdo.option.ConnectionPassword</name>
-        <value>password</value>
-    </property>
+
 </configuration>

@@ -12,6 +12,7 @@ Dockerfile.nodemanager
 superset/Dockerfile
 *.log
 
-conf/nginx.conf
 
-nifi_templates/
+
+
+docker-compose-v1.yml

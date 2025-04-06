@@ -41,6 +41,11 @@ logger.info(f"SQLALCHEMY_DATABASE_URI set to: {SQLALCHEMY_DATABASE_URI}")
 # FEATURE_FLAGS = {
 #     "ENABLE_TEMPLATE_PROCESSING": True,
 # }
+# SQLLAB_TIMEOUT = 300
+
+# SUPERSET_TIMEOUT = 300
+
+# CHART_TIMEOUT = 300
 
 # Example: Configure caching (though Redis is removed in this setup)
 # CACHE_CONFIG = {
